@@ -1,6 +1,10 @@
 package com.example.whowroteitLoader;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.loader.app.LoaderManager;
+import androidx.loader.content.Loader;
 
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -11,7 +15,10 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.EditText;
 import android.widget.TextView;
 
-public class MainActivity extends AppCompatActivity {
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<String> {
     private EditText mBookInput;
     private TextView mTitleText;
     private TextView mAuthorText;
@@ -23,6 +30,9 @@ public class MainActivity extends AppCompatActivity {
         mBookInput=findViewById(R.id.bookInput);
         mTitleText= findViewById(R.id.tilteText);
         mAuthorText= findViewById(R.id.authotText);
+        if( getSupportLoaderManager().getLoader(0)!=null) {
+            getSupportLoaderManager().initLoader(0, null, this);
+        }
     }
 
     public void searchBooks(View view) {
@@ -39,7 +49,9 @@ public class MainActivity extends AppCompatActivity {
         if(networkInfo!=null && networkInfo.isConnected() && bookName.length()!=0){
 
 
-        new FetchBook(mTitleText,mAuthorText).execute(bookName);
+      Bundle queryBundle= new Bundle();
+      queryBundle.putString("queryString",bookName);
+      getSupportLoaderManager().restartLoader(0,queryBundle,this);
         mAuthorText.setText("");
         mTitleText.setText("Loading..");
         }else {
@@ -51,5 +63,57 @@ public class MainActivity extends AppCompatActivity {
                 mTitleText.setText("No Connection");
             }
         }
+    }
+
+    @NonNull
+    @Override
+    public Loader<String> onCreateLoader(int id, @Nullable Bundle args) {
+        String queryString="";
+        if(args!=null){
+            queryString= args.getString("queryString");
+        }
+        return new BookLoader(this,queryString);
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull Loader<String> loader, String data) {
+        try{
+            JSONObject jsonObject= new JSONObject(data);
+            JSONArray itemsArray=jsonObject.getJSONArray("items");
+            int i=0;
+            String title= null;
+            String authors=null;
+            while (i<itemsArray.length() && (authors==null && title==null)){
+                JSONObject book= itemsArray.getJSONObject(i);
+                JSONObject volumeInfo= book.getJSONObject("volumeInfo");
+                try{
+                    title=volumeInfo.getString("title");
+                    authors=volumeInfo.getString("authors");
+                }catch (Exception e ){
+                    e.printStackTrace();
+                }
+                i++;
+
+            }
+            if(title!=null && authors!=null){
+                mTitleText.setText(title);
+                mAuthorText.setText(authors);
+            }else{
+                mTitleText.setText("No results");
+                mAuthorText.setText("");
+            }
+
+        }catch (Exception e){
+
+            mTitleText.setText("No results");
+            mAuthorText.setText("");
+
+        }
+    }
+
+
+    @Override
+    public void onLoaderReset(@NonNull Loader<String> loader) {
+
     }
 }
